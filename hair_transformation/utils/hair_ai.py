@@ -17,7 +17,7 @@ logging.getLogger("transformers").setLevel(logging.ERROR)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 class SkinToneAwareHairTransformation:
-    def __init__(self, use_hairstyle_ai=False):  # COMPLETELY DISABLE AI models
+    def __init__(self):
         self.hairstyles_dataset = []
         try:
             self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -41,17 +41,15 @@ class SkinToneAwareHairTransformation:
             self.processor = None
             self.model = None
         
-        # COMPLETELY DISABLE hairstyle transformation models
+        # NO Stable Diffusion - completely removed
         self.use_hairstyle_ai = False
         self.hairstyle_pipe = None
         
-        print("✅ Lightweight hair transformation initialized (AI generation disabled)")
+        print("✅ Lightweight hair transformation initialized")
 
-    # KEEP ALL YOUR ORIGINAL HAIR SEGMENTATION LOGIC
     def _get_head_hair_mask(self, image_np, face_features, all_masks):
         """Extract head hair mask while excluding facial hair (beards)"""
         if face_features is None:
-            print("   ⚠ No face features for head hair extraction")
             return all_masks
             
         face_x, face_y, face_w, face_h = face_features['bounding_box']
@@ -85,17 +83,15 @@ class SkinToneAwareHairTransformation:
                 cv2.fillPoly(head_hair_mask, [contour], 255)
         
         if np.sum(head_hair_mask > 0) < 1000:
-            print("   ⚠ Using fallback head hair detection")
             for contour in contours:
                 x, y, w, h = cv2.boundingRect(contour)
                 if y < image_np.shape[0] * 0.6:
                     cv2.fillPoly(head_hair_mask, [contour], 255)
         
-        print(f"   🎯 Head hair pixels: {np.sum(head_hair_mask > 0)} (beards excluded)")
         return head_hair_mask
 
     def _choose_hair_class_from_logits(self, upsampled_logits, image_np):
-        """Heuristic selection of hair class focusing on HEAD hair"""
+        """Heuristic selection of hair class"""
         try:
             cfg = getattr(self.model, "config", None)
             if cfg and getattr(cfg, "id2label", None):
@@ -109,12 +105,9 @@ class SkinToneAwareHairTransformation:
                             hair_classes.append((idx, label, 2))
                         elif "head" in label_lower or "scalp" in label_lower:
                             hair_classes.append((idx, label, 2))
-                        elif "hat" in label_lower or "cap" in label_lower:
-                            hair_classes.append((idx, label, 1))
                 
                 if hair_classes:
                     hair_classes.sort(key=lambda x: x[2], reverse=True)
-                    print(f"   🎯 Selected hair class: {hair_classes[0][1]}")
                     return int(hair_classes[0][0])
         except Exception:
             pass
@@ -134,7 +127,6 @@ class SkinToneAwareHairTransformation:
                 best_upper_overlap = upper_overlap
                 best_idx = c
                 
-        print(f"   🎯 Fallback selected class {best_idx}")
         return int(best_idx)
 
     def enhanced_hair_segmentation(self, image_path):
@@ -153,8 +145,6 @@ class SkinToneAwareHairTransformation:
                 image = image.convert('RGB')
 
             original_size = image.size
-            print(f"   Original image size: {original_size}")
-
             max_size = 1024
             if max(original_size) > max_size:
                 scale_factor = max_size / max(original_size)
@@ -165,7 +155,6 @@ class SkinToneAwareHairTransformation:
             if self.processor is None or self.model is None:
                 return self.fallback_segmentation(image)
 
-            print("   🔍 Detecting face for head hair extraction...")
             face_features, _, _ = self.detect_face_comprehensive(image)
             
             inputs = self.processor(images=image, return_tensors="pt")
@@ -184,7 +173,6 @@ class SkinToneAwareHairTransformation:
             hair_prob = probs[hair_class_idx]
             all_hair_mask = (hair_prob >= 0.35).astype(np.uint8) * 255
 
-            print("   🎯 Extracting head hair (excluding beards)...")
             head_hair_mask = self._get_head_hair_mask(image_np, face_features, all_hair_mask)
 
             kernel_size = max(3, min(original_size) // 200)
@@ -256,8 +244,7 @@ class SkinToneAwareHairTransformation:
                 'hair_pixels': hair_pixels, 'total_pixels': total_pixels,
                 'hair_coverage_percent': hair_coverage, 'hair_bbox': hair_bbox,
                 'has_hair': hair_pixels > min_area, 'hair_type': hair_type,
-                'hair_length': hair_length, 'complexity_score': complexity,
-                'mask_quality': 'High' if hair_pixels > min_area else 'Low'
+                'hair_length': hair_length, 'complexity_score': complexity
             }
 
             return {
@@ -454,7 +441,7 @@ class SkinToneAwareHairTransformation:
             print(f"   ❌ Basic transformation failed: {e}")
             return original_image
 
-    def full_balanced_transformation_pipeline(self, image_path, use_ai=False):
+    def full_balanced_transformation_pipeline(self, image_path):
         """Complete pipeline"""
         try:
             print("🔍 Step 1: Enhanced Hair Analysis...")
@@ -502,8 +489,6 @@ class SkinToneAwareHairTransformation:
             results.append(("3. Face Analysis", face_vis))
             
             for i, hairstyle in enumerate(style_recommendations[:3]):
-                print(f"   🎯 Generating style {i+1}: {hairstyle}")
-                
                 transformed = self.basic_ethnicity_aware_transformation(
                     original_image, hair_mask, hairstyle, skin_analysis)
                 
@@ -523,19 +508,17 @@ class SkinToneAwareHairTransformation:
             
         except Exception as e:
             print(f"❌ Pipeline error: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
 
 class StreamlitHairTransformation:
     def __init__(self):
-        self.transformer = SkinToneAwareHairTransformation(use_hairstyle_ai=False)
+        self.transformer = SkinToneAwareHairTransformation()
     
     def process_image(self, image_path, session_id):
         """Process image for Streamlit"""
         try:
-            results = self.transformer.full_balanced_transformation_pipeline(image_path, use_ai=False)
+            results = self.transformer.full_balanced_transformation_pipeline(image_path)
             
             if results is None:
                 return None
