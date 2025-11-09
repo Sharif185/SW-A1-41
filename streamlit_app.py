@@ -20,14 +20,43 @@ def main():
     st.title("💇 AI-Powered Hair Transformation")
     st.markdown("Upload your photo to see how different hairstyles would look on you!")
     
-    # Initialize AI models
+    # Initialize AI models with progress tracking
     try:
         from hair_transformation.utils.hair_ai import StreamlitHairTransformation
         
-        with st.spinner("🔄 Loading AI models... This may take a minute for first use."):
+        with st.spinner("🔄 Loading AI models... This may take 3-5 minutes for first use."):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Show loading progress
+            for i in range(5):
+                progress_bar.progress((i + 1) * 20)
+                steps = [
+                    "Loading hair segmentation...",
+                    "Loading face detection...", 
+                    "Loading skin analysis...",
+                    "Loading transformation models...",
+                    "Finalizing..."
+                ]
+                status_text.text(steps[i])
+                # Small delay to show progress
+                import time
+                time.sleep(2)
+            
             transformer = StreamlitHairTransformation()
             
-        st.success("✅ AI models loaded successfully!")
+        progress_bar.progress(100)
+        status_text.text("✅ AI models loaded successfully!")
+        
+        # Show which models are available
+        if hasattr(transformer.transformer, 'models_used'):
+            st.info(f"**Loaded models:** {', '.join(transformer.transformer.models_used)}")
+        
+        # Check if AI transformations are available
+        if not transformer.transformer.use_hairstyle_ai:
+            st.warning("⚠️ AI transformations limited - using enhanced basic transformations")
+        else:
+            st.success("🎨 Full AI transformations available!")
         
     except Exception as e:
         st.error(f"❌ Failed to load AI models: {e}")

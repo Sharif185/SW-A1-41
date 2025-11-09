@@ -51,35 +51,54 @@ class SkinToneAwareHairTransformation:
             self._initialize_hairstyle_models()
 
     def _initialize_hairstyle_models(self):
-        """Initialize hairstyle transformation models (use inpainting pipeline)"""
+        """Initialize hairstyle transformation models with proper error handling"""
         try:
             print("🔄 Initializing hairstyle transformation models...")
             from diffusers import StableDiffusionInpaintPipeline
-
+            
+            # Use a more stable model configuration
             model_name = "runwayml/stable-diffusion-inpainting"
+            
+            # Load with explicit configuration to avoid safetensors issues
             self.hairstyle_pipe = StableDiffusionInpaintPipeline.from_pretrained(
                 model_name,
                 torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                use_safetensors=True,  # Force safetensors
                 safety_checker=None,
-                requires_safety_checker=False
+                requires_safety_checker=False,
+                local_files_only=False,  # Ensure downloads work
+                revision="fp16" if torch.cuda.is_available() else "main"
             )
-            # move to device
+            
+            # Move to device with proper handling
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
-
-            # try to enable memory optimizations if available
+            
+            # Use proper device migration to avoid meta tensor issues
+            if self.device == "cuda":
+                self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
+            else:
+                # For CPU, use a different approach
+                self.hairstyle_pipe = self.hairstyle_pipe.to(torch.float32)
+                self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
+            
+            # Enable memory optimizations
             try:
-                self.hairstyle_pipe.enable_model_cpu_offload()
-                self.hairstyle_pipe.enable_xformers_memory_efficient_attention()
-            except Exception:
-                pass
-
+                self.hairstyle_pipe.enable_attention_slicing()
+                if self.device == "cuda":
+                    self.hairstyle_pipe.enable_model_cpu_offload()
+                else:
+                    self.hairstyle_pipe.enable_sequential_cpu_offload()
+            except Exception as opt_e:
+                print(f"   ⚠ Memory optimizations not available: {opt_e}")
+            
             self.models_used.append(f"{model_name} (Hairstyle Transformation)")
-            print(f"✅ Loaded: {model_name}")
+            print(f"✅ Loaded: {model_name} on {self.device}")
 
         except Exception as e:
             print(f"🚫 Model initialization failed: {e}")
+            print("   🔄 Falling back to basic transformations...")
             self.use_hairstyle_ai = False
+            self.hairstyle_pipe = None
 
     def _get_head_hair_mask(self, image_np, face_features, all_masks):
         """Extract head hair mask while excluding facial hair (beards)"""
@@ -943,6 +962,7 @@ class SkinToneAwareHairTransformation:
     def texture_preserving_transformation(self, original_image, hair_mask, face_features, hairstyle, skin_analysis, texture_features):
         """Transformation that preserves natural hair texture while changing style"""
         if not self.use_hairstyle_ai or self.hairstyle_pipe is None:
+            print("   ⚠ Using basic transformation (AI model not available)")
             return self.basic_ethnicity_aware_transformation(original_image, hair_mask, hairstyle, skin_analysis)
 
         try:
@@ -979,7 +999,6 @@ class SkinToneAwareHairTransformation:
             init_image_resized = init_image.resize(target_size, Image.LANCZOS)
             mask_image_resized = mask_image.resize(target_size, Image.NEAREST)
 
-            device = getattr(self, "device", "cpu")
             # run inpainting
             generator = torch.manual_seed(42)
             output = self.hairstyle_pipe(
@@ -1018,13 +1037,14 @@ class SkinToneAwareHairTransformation:
             composed = (edited_np * mask_np + orig_np * (1 - mask_np)).astype(np.uint8)
             composed_pil = Image.fromarray(composed)
             
-            print(f"   ✅ Transformation completed successfully")
+            print(f"   ✅ AI Transformation completed successfully")
             return composed_pil
 
         except Exception as e:
             print(f"   ❌ Texture-preserving transformation failed: {e}")
             import traceback
             traceback.print_exc()
+            print("   🔄 Falling back to basic transformation...")
             return self.basic_ethnicity_aware_transformation(original_image, hair_mask, hairstyle, skin_analysis)
 
     def basic_ethnicity_aware_transformation(self, original_image, hair_mask, hairstyle, skin_analysis):
