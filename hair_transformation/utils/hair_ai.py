@@ -1,9 +1,16 @@
 import os
+# ULTRA-SAFE MODEL LOADING CONFIGURATION
 os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
-os.environ['SAFETENSORS_FAST_GPU'] = '1'
+os.environ['SAFETENSORS_FAST_GPU'] = '0'  # Disable safetensors GPU acceleration
 os.environ['TRANSFORMERS_OFFLINE'] = '0'
-import uuid
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Force CPU only
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+
+# Force CPU for all operations
 import torch
+torch.backends.cudnn.enabled = False
+
+# Now import other dependencies
 import numpy as np
 from PIL import Image, ImageOps
 import cv2
@@ -54,82 +61,51 @@ class SkinToneAwareHairTransformation:
             self._initialize_hairstyle_models()
 
     def _initialize_hairstyle_models(self):
-             """Initialize hairstyle transformation models with robust error handling"""
-    try:
-        print("🔄 Initializing hairstyle transformation models...")
-        from diffusers import StableDiffusionInpaintPipeline
-        
-        # Use a more stable model configuration
-        model_name = "runwayml/stable-diffusion-inpainting"
-        
-        # First try with safetensors only
+        """Initialize hairstyle transformation models with ultra-robust error handling"""
         try:
-            print("   🔄 Attempting to load with safetensors...")
+            print("🔄 Initializing hairstyle transformation models...")
+            from diffusers import StableDiffusionInpaintPipeline
+            
+            # Try a smaller, more reliable model first
+            model_name = "runwayml/stable-diffusion-inpainting"
+            
+            print("   🔄 Loading model with ultra-safe configuration...")
+            
+            # Use the most basic configuration possible
             self.hairstyle_pipe = StableDiffusionInpaintPipeline.from_pretrained(
                 model_name,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                use_safetensors=True,  # Force safetensors
+                torch_dtype=torch.float32,  # Always use float32 for stability
+                use_safetensors=False,  # Force allow pickle files
                 safety_checker=None,
                 requires_safety_checker=False,
                 local_files_only=False,
+                device_map="auto",  # Let transformers handle device placement
+                low_cpu_mem_usage=True,  # Reduce memory usage
             )
-            print("   ✅ Loaded with safetensors!")
             
-        except Exception as safetensors_error:
-            print(f"   ⚠ Safetensors loading failed: {safetensors_error}")
-            print("   🔄 Falling back to allow pickle files...")
-            
-            # Fallback: allow pickle files
-            self.hairstyle_pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                model_name,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                use_safetensors=False,  # Allow pickle files
-                safety_checker=None,
-                requires_safety_checker=False,
-                local_files_only=False,
-            )
-            print("   ✅ Loaded with pickle fallback!")
-        
-        # Move to device with proper handling
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"   🔄 Moving model to device: {self.device}")
-        
-        # Use proper device migration
-        try:
-            if self.device == "cuda":
-                self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
-            else:
-                # For CPU, ensure we're using the right dtype
-                self.hairstyle_pipe = self.hairstyle_pipe.to(torch.float32)
-                self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
-        except Exception as device_error:
-            print(f"   ⚠ Device movement failed: {device_error}")
-            print("   🔄 Trying CPU-only approach...")
+            # Use CPU only to avoid device issues
             self.device = "cpu"
-            self.hairstyle_pipe = self.hairstyle_pipe.to(torch.float32).to("cpu")
-        
-        # Enable memory optimizations
-        try:
-            self.hairstyle_pipe.enable_attention_slicing()
-            if self.device == "cuda":
-                try:
-                    self.hairstyle_pipe.enable_model_cpu_offload()
-                except:
-                    self.hairstyle_pipe.enable_sequential_cpu_offload()
-            else:
+            print(f"   🔄 Moving model to {self.device}...")
+            
+            # Move to CPU with proper handling
+            self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
+            
+            # Enable CPU optimizations
+            try:
+                self.hairstyle_pipe.enable_attention_slicing()
                 self.hairstyle_pipe.enable_sequential_cpu_offload()
-            print("   ✅ Memory optimizations enabled")
-        except Exception as opt_e:
-            print(f"   ⚠ Memory optimizations not available: {opt_e}")
-        
-        self.models_used.append(f"{model_name} (Hairstyle Transformation)")
-        print(f"✅ Successfully loaded: {model_name} on {self.device}")
+                print("   ✅ CPU optimizations enabled")
+            except Exception as opt_e:
+                print(f"   ⚠ CPU optimizations not available: {opt_e}")
+            
+            self.models_used.append(f"{model_name} (CPU Safe Mode)")
+            print(f"✅ Successfully loaded: {model_name} on {self.device}")
 
-    except Exception as e:
-        print(f"🚫 Model initialization completely failed: {e}")
-        print("   🔄 Stable Diffusion disabled - using basic transformations only")
-        self.use_hairstyle_ai = False
-        self.hairstyle_pipe = None
+        except Exception as e:
+            print(f"🚫 Model initialization failed: {e}")
+            print("   🔄 Stable Diffusion disabled - using enhanced basic transformations")
+            self.use_hairstyle_ai = False
+            self.hairstyle_pipe = None
 
     def _get_head_hair_mask(self, image_np, face_features, all_masks):
         """Extract head hair mask while excluding facial hair (beards)"""
@@ -990,14 +966,108 @@ class SkinToneAwareHairTransformation:
         
         return prompt
 
+    def enhanced_basic_transformation(self, original_image, hair_mask, hairstyle, skin_analysis):
+        """Enhanced basic transformation with better visual results"""
+        try:
+            original_array = np.array(original_image)
+            hair_array = np.array(hair_mask)
+            
+            result = original_array.copy()
+            hair_region = hair_array > 128
+            
+            if np.sum(hair_region) < 500:
+                return original_image
+            
+            ethnicity = skin_analysis['ethnicity_likely']
+            skin_tone = skin_analysis['skin_tone']
+            
+            # Enhanced color mapping based on ethnicity and skin tone
+            color_profiles = {
+                "African": {
+                    "Brown": [25, 15, 5],
+                    "Dark": [20, 10, 0],
+                    "default": [30, 20, 10]
+                },
+                "East Asian/Caucasian": {
+                    "Fair": [80, 60, 40],
+                    "Light": [70, 50, 30],
+                    "default": [60, 40, 20]
+                },
+                "Latin American/Middle Eastern": {
+                    "Medium": [50, 30, 15],
+                    "Olive": [45, 25, 10],
+                    "default": [55, 35, 20]
+                },
+                "South Asian/Middle Eastern": {
+                    "Medium": [40, 25, 10],
+                    "Brown": [35, 20, 5],
+                    "default": [45, 30, 15]
+                }
+            }
+            
+            # Get base color
+            base_color = color_profiles.get(ethnicity, color_profiles["East Asian/Caucasian"]).get(
+                skin_tone, color_profiles.get(ethnicity, color_profiles["East Asian/Caucasian"])["default"]
+            )
+            
+            # Apply sophisticated color transformation
+            for channel in range(3):
+                # Blend original hair color with target color
+                blend_factor = 0.7  # Higher = more target color
+                result[hair_region, channel] = np.clip(
+                    (1 - blend_factor) * result[hair_region, channel] + blend_factor * base_color[channel],
+                    0, 255
+                ).astype(np.uint8)
+            
+            # Add realistic texture based on hair type
+            height, width = result.shape[:2]
+            
+            # Different texture patterns for different ethnicities
+            if ethnicity == "African":
+                # Curly/coily texture
+                texture = np.random.rand(height, width) * 40 - 20
+                # Add some curl pattern
+                curl_pattern = np.sin(np.indices((height, width))[1] / 20) * 15
+                texture += curl_pattern
+            elif ethnicity == "East Asian/Caucasian":
+                # Straight/slightly wavy texture
+                texture = np.random.rand(height, width) * 25 - 12
+                wave_pattern = np.sin(np.indices((height, width))[1] / 30) * 8
+                texture += wave_pattern
+            else:
+                # Wavy/curly texture
+                texture = np.random.rand(height, width) * 30 - 15
+                wave_pattern = np.sin(np.indices((height, width))[1] / 25) * 10
+                texture += wave_pattern
+            
+            # Apply texture
+            for channel in range(3):
+                result[hair_region, channel] = np.clip(
+                    result[hair_region, channel] + texture[hair_region],
+                    0, 255
+                ).astype(np.uint8)
+            
+            # Add professional annotation
+            annotated = result.copy()
+            cv2.putText(annotated, f"Style: {hairstyle[:25]}...", (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            cv2.putText(annotated, f"For {ethnicity} | {skin_tone} skin", (10, 55), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            
+            return Image.fromarray(annotated)
+            
+        except Exception as e:
+            print(f"   ❌ Enhanced basic transformation failed: {e}")
+            return original_image
+
     def texture_preserving_transformation(self, original_image, hair_mask, face_features, hairstyle, skin_analysis, texture_features):
         """Transformation that preserves natural hair texture while changing style"""
         if not self.use_hairstyle_ai or self.hairstyle_pipe is None:
-            print("   ⚠ Using basic transformation (AI model not available)")
-            return self.basic_ethnicity_aware_transformation(original_image, hair_mask, hairstyle, skin_analysis)
+            print("   ⚠ Using ENHANCED basic transformation (AI model not available)")
+            return self.enhanced_basic_transformation(original_image, hair_mask, hairstyle, skin_analysis)
 
         try:
-            print(f"   🎨 Texture-Preserving Transformation: {hairstyle}")
+            print(f"   🎨 Attempting AI Transformation: {hairstyle}")
 
             # Store original dimensions
             original_size = original_image.size
@@ -1072,11 +1142,9 @@ class SkinToneAwareHairTransformation:
             return composed_pil
 
         except Exception as e:
-            print(f"   ❌ Texture-preserving transformation failed: {e}")
-            import traceback
-            traceback.print_exc()
-            print("   🔄 Falling back to basic transformation...")
-            return self.basic_ethnicity_aware_transformation(original_image, hair_mask, hairstyle, skin_analysis)
+            print(f"   ❌ AI transformation failed: {e}")
+            print("   🔄 Falling back to enhanced basic transformation...")
+            return self.enhanced_basic_transformation(original_image, hair_mask, hairstyle, skin_analysis)
 
     def basic_ethnicity_aware_transformation(self, original_image, hair_mask, hairstyle, skin_analysis):
         """Basic ethnicity-aware transformation without AI"""
