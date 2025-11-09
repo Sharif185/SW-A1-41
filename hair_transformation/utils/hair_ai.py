@@ -32,38 +32,34 @@ from transformers import AutoImageProcessor, AutoModelForSemanticSegmentation
 class SkinToneAwareHairTransformation:
     def __init__(self, use_hairstyle_ai=True):
         self.hairstyles_dataset = []
-        try:
-            self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        except Exception as e:
-            print(f"⚠️ Face cascade loading warning: {e}")
-            self.face_cascade = None
-        
-        # Model tracking
-        self.models_used = []
-        
-        # Load the SegFormer model for hair segmentation
-        print("📦 Loading SegFormer model for hair segmentation...")
-        try:
-            self.processor = AutoImageProcessor.from_pretrained("mattmdjaga/segformer_b2_clothes")
-            self.model = AutoModelForSemanticSegmentation.from_pretrained("mattmdjaga/segformer_b2_clothes")
-            self.models_used.append("mattmdjaga/segformer_b2_clothes (Hair Segmentation)")
-            print("✅ SegFormer model loaded successfully")
-        except Exception as e:
-            print(f"   ⚠ Could not load SegFormer: {e}")
-            self.processor = None
-            self.model = None
-        
-        # COMPLETELY DISABLE Stable Diffusion for stable deployment
-        self.use_hairstyle_ai = False
-        self.hairstyle_pipe = None
-        print("🚫 Stable Diffusion disabled - using enhanced transformations only")
-
-    def _initialize_hairstyle_models(self):
-        """COMPLETELY DISABLED - Use enhanced basic transformations only"""
-        print("🔄 Skipping Stable Diffusion initialization (using enhanced transformations)")
-        self.use_hairstyle_ai = False
-        self.hairstyle_pipe = None
-        print("✅ Using enhanced basic transformations for stable deployment")
+    try:
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    except Exception as e:
+        print(f"⚠️ Face cascade loading warning: {e}")
+        self.face_cascade = None
+    
+    # Model tracking
+    self.models_used = []
+    
+    # Load the SegFormer model for hair segmentation
+    print("📦 Loading SegFormer model for hair segmentation...")
+    try:
+        self.processor = AutoImageProcessor.from_pretrained("mattmdjaga/segformer_b2_clothes")
+        self.model = AutoModelForSemanticSegmentation.from_pretrained("mattmdjaga/segformer_b2_clothes")
+        self.models_used.append("mattmdjaga/segformer_b2_clothes (Hair Segmentation)")
+        print("✅ SegFormer model loaded successfully")
+    except Exception as e:
+        print(f"   ⚠ Could not load SegFormer: {e}")
+        self.processor = None
+        self.model = None
+    
+    # COMPLETELY DISABLE Stable Diffusion - don't even call the initialization
+    self.use_hairstyle_ai = False
+    self.hairstyle_pipe = None
+    print("🚫 Stable Diffusion disabled - using enhanced transformations only")
+    
+    # IMPORTANT: Completely removed the call to _initialize_hairstyle_models
+    # This prevents any Stable Diffusion loading attempts
 
     def _get_head_hair_mask(self, image_np, face_features, all_masks):
         """Extract head hair mask while excluding facial hair (beards)"""
