@@ -5,13 +5,13 @@ import tempfile
 from PIL import Image
 
 st.set_page_config(
-    page_title="AI Hair Transformation",
+    page_title="Hair Style Advisor",
     page_icon="💇",
     layout="wide"
 )
 
-st.title("💇 AI Hair Transformation")
-st.info("✨ Professional Hair Analysis & Styling Recommendations")
+st.title("💇 Hair Style Advisor")
+st.info("Get personalized hairstyle recommendations based on your features")
 
 # Initialize the transformer
 @st.cache_resource
@@ -21,7 +21,7 @@ def load_transformer():
         from hair_transformation.utils.hair_ai import StreamlitHairTransformation
         return StreamlitHairTransformation()
     except Exception as e:
-        st.error(f"❌ Failed to load transformer: {e}")
+        st.error(f"Failed to load: {e}")
         return None
 
 transformer = load_transformer()
@@ -37,8 +37,8 @@ if uploaded_file:
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Image", use_column_width=True)
     
-    if st.button("🚀 Analyze & Recommend Hairstyles", type="primary"):
-        with st.spinner("🔍 Analyzing your features..."):
+    if st.button("🚀 Get Recommendations", type="primary"):
+        with st.spinner("Analyzing your features..."):
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
                     image.save(tmp_file.name)
@@ -51,7 +51,7 @@ if uploaded_file:
                         st.success("✅ Analysis Complete!")
                         
                         # Display analysis
-                        st.header("📊 Your Analysis Results")
+                        st.header("📊 Your Analysis")
                         cols = st.columns(3)
                         with cols[0]:
                             st.metric("Skin Tone", results['analysis_data']['skin_tone'])
@@ -60,7 +60,7 @@ if uploaded_file:
                             st.metric("Hair Length", results['analysis_data']['hair_length'])
                             st.metric("Hair Texture", results['analysis_data']['hair_texture'])
                         with cols[2]:
-                            st.metric("Hair Coverage", f"{results['analysis_data']['hair_coverage']:.1f}%")
+                            st.metric("Hair Coverage", results['analysis_data']['hair_coverage'])
                             st.metric("Ethnicity", results['analysis_data']['ethnicity'])
                         
                         # Recommendations
@@ -72,18 +72,18 @@ if uploaded_file:
                         st.write(" • ".join([f"**{color}**" for color in results['recommendations']['colors']]))
                         
                         # Images
-                        st.header("🖼️ Visualized Hairstyles")
+                        st.header("🖼️ Style Visualizations")
                         for title, img in results['images']:
                             st.subheader(title)
                             st.image(img, use_column_width=True)
                             
                     else:
-                        st.error("❌ Analysis failed. Please try with a different image.")
+                        st.error("Analysis failed. Please try with a different image.")
                 else:
-                    st.error("❌ Service not available. Please try again later.")
+                    st.error("Service not available.")
                     
             except Exception as e:
-                st.error(f"❌ Processing error: {e}")
+                st.error(f"Processing error: {e}")
             finally:
                 if 'tmp_path' in locals() and os.path.exists(tmp_path):
                     os.unlink(tmp_path)
@@ -91,14 +91,13 @@ if uploaded_file:
 # Info
 st.sidebar.header("ℹ️ About")
 st.sidebar.info("""
-This app analyzes your facial features and provides personalized hairstyle recommendations.
+This app provides personalized hairstyle recommendations based on basic feature analysis.
 
 **Features:**
-- Face shape detection
+- Face detection
 - Skin tone analysis  
-- Hair type classification
-- Personalized recommendations
-- Visual transformations
+- Style recommendations
+- Color suggestions
 
-**No AI generation** - Uses professional analysis only.
+Upload a clear face photo to get started!
 """)
