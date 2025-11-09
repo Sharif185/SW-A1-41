@@ -1,4 +1,7 @@
 import os
+os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
+os.environ['SAFETENSORS_FAST_GPU'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '0'
 import uuid
 import torch
 import numpy as np
@@ -51,54 +54,82 @@ class SkinToneAwareHairTransformation:
             self._initialize_hairstyle_models()
 
     def _initialize_hairstyle_models(self):
-        """Initialize hairstyle transformation models with proper error handling"""
+             """Initialize hairstyle transformation models with robust error handling"""
+    try:
+        print("🔄 Initializing hairstyle transformation models...")
+        from diffusers import StableDiffusionInpaintPipeline
+        
+        # Use a more stable model configuration
+        model_name = "runwayml/stable-diffusion-inpainting"
+        
+        # First try with safetensors only
         try:
-            print("🔄 Initializing hairstyle transformation models...")
-            from diffusers import StableDiffusionInpaintPipeline
-            
-            # Use a more stable model configuration
-            model_name = "runwayml/stable-diffusion-inpainting"
-            
-            # Load with explicit configuration to avoid safetensors issues
+            print("   🔄 Attempting to load with safetensors...")
             self.hairstyle_pipe = StableDiffusionInpaintPipeline.from_pretrained(
                 model_name,
                 torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
                 use_safetensors=True,  # Force safetensors
                 safety_checker=None,
                 requires_safety_checker=False,
-                local_files_only=False,  # Ensure downloads work
-                revision="fp16" if torch.cuda.is_available() else "main"
+                local_files_only=False,
             )
+            print("   ✅ Loaded with safetensors!")
             
-            # Move to device with proper handling
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        except Exception as safetensors_error:
+            print(f"   ⚠ Safetensors loading failed: {safetensors_error}")
+            print("   🔄 Falling back to allow pickle files...")
             
-            # Use proper device migration to avoid meta tensor issues
+            # Fallback: allow pickle files
+            self.hairstyle_pipe = StableDiffusionInpaintPipeline.from_pretrained(
+                model_name,
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                use_safetensors=False,  # Allow pickle files
+                safety_checker=None,
+                requires_safety_checker=False,
+                local_files_only=False,
+            )
+            print("   ✅ Loaded with pickle fallback!")
+        
+        # Move to device with proper handling
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"   🔄 Moving model to device: {self.device}")
+        
+        # Use proper device migration
+        try:
             if self.device == "cuda":
                 self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
             else:
-                # For CPU, use a different approach
+                # For CPU, ensure we're using the right dtype
                 self.hairstyle_pipe = self.hairstyle_pipe.to(torch.float32)
                 self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
-            
-            # Enable memory optimizations
-            try:
-                self.hairstyle_pipe.enable_attention_slicing()
-                if self.device == "cuda":
+        except Exception as device_error:
+            print(f"   ⚠ Device movement failed: {device_error}")
+            print("   🔄 Trying CPU-only approach...")
+            self.device = "cpu"
+            self.hairstyle_pipe = self.hairstyle_pipe.to(torch.float32).to("cpu")
+        
+        # Enable memory optimizations
+        try:
+            self.hairstyle_pipe.enable_attention_slicing()
+            if self.device == "cuda":
+                try:
                     self.hairstyle_pipe.enable_model_cpu_offload()
-                else:
+                except:
                     self.hairstyle_pipe.enable_sequential_cpu_offload()
-            except Exception as opt_e:
-                print(f"   ⚠ Memory optimizations not available: {opt_e}")
-            
-            self.models_used.append(f"{model_name} (Hairstyle Transformation)")
-            print(f"✅ Loaded: {model_name} on {self.device}")
+            else:
+                self.hairstyle_pipe.enable_sequential_cpu_offload()
+            print("   ✅ Memory optimizations enabled")
+        except Exception as opt_e:
+            print(f"   ⚠ Memory optimizations not available: {opt_e}")
+        
+        self.models_used.append(f"{model_name} (Hairstyle Transformation)")
+        print(f"✅ Successfully loaded: {model_name} on {self.device}")
 
-        except Exception as e:
-            print(f"🚫 Model initialization failed: {e}")
-            print("   🔄 Falling back to basic transformations...")
-            self.use_hairstyle_ai = False
-            self.hairstyle_pipe = None
+    except Exception as e:
+        print(f"🚫 Model initialization completely failed: {e}")
+        print("   🔄 Stable Diffusion disabled - using basic transformations only")
+        self.use_hairstyle_ai = False
+        self.hairstyle_pipe = None
 
     def _get_head_hair_mask(self, image_np, face_features, all_masks):
         """Extract head hair mask while excluding facial hair (beards)"""

@@ -8,7 +8,6 @@ import traceback
 # Add current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Configure the page first
 st.set_page_config(
     page_title="AI Hair Transformation",
     page_icon="💇",
@@ -20,7 +19,7 @@ def main():
     st.title("💇 AI-Powered Hair Transformation")
     st.markdown("Upload your photo to see how different hairstyles would look on you!")
     
-    # Initialize AI models with progress tracking
+    # Initialize AI models with robust error handling
     try:
         from hair_transformation.utils.hair_ai import StreamlitHairTransformation
         
@@ -29,39 +28,40 @@ def main():
             status_text = st.empty()
             
             # Show loading progress
-            for i in range(5):
-                progress_bar.progress((i + 1) * 20)
-                steps = [
-                    "Loading hair segmentation...",
-                    "Loading face detection...", 
-                    "Loading skin analysis...",
-                    "Loading transformation models...",
-                    "Finalizing..."
-                ]
-                status_text.text(steps[i])
-                # Small delay to show progress
-                import time
-                time.sleep(2)
+            steps = [
+                "Initializing environment...",
+                "Loading hair segmentation model...",
+                "Loading face detection...", 
+                "Loading skin analysis...",
+                "Loading transformation models..."
+            ]
             
-            transformer = StreamlitHairTransformation()
+            for i, step in enumerate(steps):
+                progress_bar.progress((i + 1) * 20)
+                status_text.text(step)
+                import time
+                time.sleep(1)  # Shorter delay
+            
+            # Initialize the transformer
+            transformer = StreamlitHairTransformation(use_hairstyle_ai=True)
             
         progress_bar.progress(100)
         status_text.text("✅ AI models loaded successfully!")
         
-        # Show which models are available
+        # Show model status
         if hasattr(transformer.transformer, 'models_used'):
-            st.info(f"**Loaded models:** {', '.join(transformer.transformer.models_used)}")
+            st.success(f"**Loaded models:** {', '.join(transformer.transformer.models_used)}")
         
-        # Check if AI transformations are available
-        if not transformer.transformer.use_hairstyle_ai:
-            st.warning("⚠️ AI transformations limited - using enhanced basic transformations")
+        # Check transformation capabilities
+        if transformer.transformer.use_hairstyle_ai and transformer.transformer.hairstyle_pipe is not None:
+            st.success("🎨 **Full AI transformations available!**")
         else:
-            st.success("🎨 Full AI transformations available!")
+            st.warning("⚠️ **Limited mode:** Using enhanced basic transformations (AI model loading partially failed)")
+            st.info("The app will still provide hair analysis and recommendations, but virtual try-ons will use basic transformations.")
         
     except Exception as e:
-        st.error(f"❌ Failed to load AI models: {e}")
-        st.info("Please refresh the page and try again.")
-        transformer = None
+        st.error(f"❌ Critical error loading AI models: {e}")
+        st.info("Please refresh the page. If the problem continues, the service might be temporarily unavailable.")
         return
     
     # Initialize session state
@@ -105,14 +105,13 @@ def process_image(uploaded_file, transformer):
             progress_bar = st.progress(0)
             status_text = st.empty()
             
-            # Simulate progress (you can replace with actual progress callbacks)
+            # Simulate progress
             steps = ["Detecting face", "Analyzing skin tone", "Segmenting hair", "Generating transformations"]
             for i, step in enumerate(steps):
                 progress_bar.progress((i + 1) * 25)
                 status_text.text(f"{step}...")
-                # Add small delay to show progress
                 import time
-                time.sleep(1)
+                time.sleep(0.5)  # Shorter delay
             
             results = transformer.process_image(tmp_path, "user_session")
         
