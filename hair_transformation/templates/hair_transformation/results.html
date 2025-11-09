@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container my-5">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <h1 class="display-4">Your Hair Transformation Results</h1>
+            <p class="lead">Balanced recommendations with 2 long and 2 short styles</p>
+        </div>
+    </div>
+
+    <!-- Analysis Summary -->
+    <div class="row mb-5">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Analysis Summary</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Skin Tone:</strong>
+                            <span class="badge bg-info analysis-badge">{{ analysis_data.skin_tone }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Ethnicity:</strong>
+                            <span class="badge bg-info analysis-badge">{{ analysis_data.ethnicity }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Face Shape:</strong>
+                            <span class="badge bg-info analysis-badge">{{ analysis_data.face_shape }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Current Hair:</strong>
+                            <span class="badge bg-info analysis-badge">{{ analysis_data.hair_length }} {{ analysis_data.hair_texture }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Original and Analysis Images -->
+    <div class="row mb-5">
+        <div class="col-md-4">
+            <div class="card transformation-card">
+                <div class="card-header bg-secondary text-white text-center">
+                    Original Image
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ transformation.original_image.url }}" 
+                         class="img-fluid rounded" 
+                         alt="Original image"
+                         style="max-height: 300px; object-fit: contain;">
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card transformation-card">
+                <div class="card-header bg-success text-white text-center">
+                    Hair Analysis
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ transformation.hair_analysis_image.url }}" 
+                         class="img-fluid rounded" 
+                         alt="Hair analysis"
+                         style="max-height: 300px; object-fit: contain;">
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card transformation-card">
+                <div class="card-header bg-warning text-white text-center">
+                    Face Analysis
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ transformation.face_analysis_image.url }}" 
+                         class="img-fluid rounded" 
+                         alt="Face analysis"
+                         style="max-height: 300px; object-fit: contain;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Long Styles -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="text-center mb-4">
+                <i class="fas fa-long-arrow-alt-down text-primary me-2"></i>
+                Long Style Recommendations
+                <span class="badge bg-primary">2 Options</span>
+            </h2>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        {% for style in long_styles %}
+        <div class="col-md-6">
+            <div class="card transformation-card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Long Style {{ forloop.counter }}</h5>
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ style.transformed_image.url }}" 
+                         class="img-fluid rounded mb-3" 
+                         alt="{{ style.style_name }}"
+                         style="max-height: 400px; object-fit: contain;">
+                    <h6 class="card-title">{{ style.style_name }}</h6>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Short Styles -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="text-center mb-4">
+                <i class="fas fa-cut text-danger me-2"></i>
+                Short Style Recommendations
+                <span class="badge bg-danger">2 Options</span>
+            </h2>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        {% for style in short_styles %}
+        <div class="col-md-6">
+            <div class="card transformation-card h-100">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Short Style {{ forloop.counter }}</h5>
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ style.transformed_image.url }}" 
+                         class="img-fluid rounded mb-3" 
+                         alt="{{ style.style_name }}"
+                         style="max-height: 400px; object-fit: contain;">
+                    <h6 class="card-title">{{ style.style_name }}</h6>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Color Recommendations -->
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-info text-white text-center">
+                    <h4 class="mb-0"><i class="fas fa-palette me-2"></i>Recommended Hair Colors</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        {% for color in transformation.color_recommendations %}
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="color-swatch" style="background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                <strong>{{ color }}</strong>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Try Another -->
+    <div class="row mt-5">
+        <div class="col-12 text-center">
+            <a href="{% url 'home' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-redo me-2"></i>Try Another Photo
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

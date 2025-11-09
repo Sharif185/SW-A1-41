@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white text-center">
+                    <h3><i class="fas fa-exclamation-triangle me-2"></i>Error</h3>
+                </div>
+                <div class="card-body text-center">
+                    <p class="lead">{{ error }}</p>
+                    <a href="{% url 'home' %}" class="btn btn-primary">
+                        <i class="fas fa-home me-2"></i>Back to Home
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
