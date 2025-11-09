@@ -53,59 +53,17 @@ class SkinToneAwareHairTransformation:
             self.processor = None
             self.model = None
         
-        # Hairstyle transformation models
-        self.use_hairstyle_ai = use_hairstyle_ai
+        # COMPLETELY DISABLE Stable Diffusion for stable deployment
+        self.use_hairstyle_ai = False
         self.hairstyle_pipe = None
-        
-        if use_hairstyle_ai:
-            self._initialize_hairstyle_models()
+        print("🚫 Stable Diffusion disabled - using enhanced transformations only")
 
     def _initialize_hairstyle_models(self):
-        """Initialize hairstyle transformation models with ultra-robust error handling"""
-        try:
-            print("🔄 Initializing hairstyle transformation models...")
-            from diffusers import StableDiffusionInpaintPipeline
-            
-            # Try a smaller, more reliable model first
-            model_name = "runwayml/stable-diffusion-inpainting"
-            
-            print("   🔄 Loading model with ultra-safe configuration...")
-            
-            # Use the most basic configuration possible
-            self.hairstyle_pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                model_name,
-                torch_dtype=torch.float32,  # Always use float32 for stability
-                use_safetensors=False,  # Force allow pickle files
-                safety_checker=None,
-                requires_safety_checker=False,
-                local_files_only=False,
-                device_map="auto",  # Let transformers handle device placement
-                low_cpu_mem_usage=True,  # Reduce memory usage
-            )
-            
-            # Use CPU only to avoid device issues
-            self.device = "cpu"
-            print(f"   🔄 Moving model to {self.device}...")
-            
-            # Move to CPU with proper handling
-            self.hairstyle_pipe = self.hairstyle_pipe.to(self.device)
-            
-            # Enable CPU optimizations
-            try:
-                self.hairstyle_pipe.enable_attention_slicing()
-                self.hairstyle_pipe.enable_sequential_cpu_offload()
-                print("   ✅ CPU optimizations enabled")
-            except Exception as opt_e:
-                print(f"   ⚠ CPU optimizations not available: {opt_e}")
-            
-            self.models_used.append(f"{model_name} (CPU Safe Mode)")
-            print(f"✅ Successfully loaded: {model_name} on {self.device}")
-
-        except Exception as e:
-            print(f"🚫 Model initialization failed: {e}")
-            print("   🔄 Stable Diffusion disabled - using enhanced basic transformations")
-            self.use_hairstyle_ai = False
-            self.hairstyle_pipe = None
+        """COMPLETELY DISABLED - Use enhanced basic transformations only"""
+        print("🔄 Skipping Stable Diffusion initialization (using enhanced transformations)")
+        self.use_hairstyle_ai = False
+        self.hairstyle_pipe = None
+        print("✅ Using enhanced basic transformations for stable deployment")
 
     def _get_head_hair_mask(self, image_np, face_features, all_masks):
         """Extract head hair mask while excluding facial hair (beards)"""
@@ -1061,90 +1019,9 @@ class SkinToneAwareHairTransformation:
             return original_image
 
     def texture_preserving_transformation(self, original_image, hair_mask, face_features, hairstyle, skin_analysis, texture_features):
-        """Transformation that preserves natural hair texture while changing style"""
-        if not self.use_hairstyle_ai or self.hairstyle_pipe is None:
-            print("   ⚠ Using ENHANCED basic transformation (AI model not available)")
-            return self.enhanced_basic_transformation(original_image, hair_mask, hairstyle, skin_analysis)
-
-        try:
-            print(f"   🎨 Attempting AI Transformation: {hairstyle}")
-
-            # Store original dimensions
-            original_size = original_image.size
-            print(f"   Original image size: {original_size}")
-
-            # create prompt
-            prompt = self.create_texture_preserving_prompt(hairstyle, skin_analysis, face_features['shape'], texture_features)
-            init_image = original_image.convert("RGB")
-            mask_image = hair_mask.convert("L")
-
-            # ensure sizes match
-            if mask_image.size != init_image.size:
-                mask_image = mask_image.resize(init_image.size, resample=Image.NEAREST)
-
-            # mask convention: white (255) = inpaint region — ensure it's white where hair is
-            nonzero = (np.array(mask_image) > 127).sum()
-            total = mask_image.size[0] * mask_image.size[1]
-            pct = 100.0 * nonzero / max(1, total)
-            print(f"   Mask white pixels: {nonzero} / {total} ({pct:.2f}%)")
-
-            if pct < 0.2:
-                # if mask is tiny maybe threshold too high or inverted — invert if needed
-                mask_image = ImageOps.invert(mask_image)
-                nonzero = (np.array(mask_image) > 127).sum()
-                pct = 100.0 * nonzero / max(1, total)
-                print(f"   After invert: mask white pixels {nonzero} ({pct:.2f}%)")
-
-            # Resize images to 512x512 for the model (Stable Diffusion's expected input size)
-            target_size = (512, 512)
-            init_image_resized = init_image.resize(target_size, Image.LANCZOS)
-            mask_image_resized = mask_image.resize(target_size, Image.NEAREST)
-
-            # run inpainting
-            generator = torch.manual_seed(42)
-            output = self.hairstyle_pipe(
-                prompt=prompt,
-                image=init_image_resized,
-                mask_image=mask_image_resized,
-                guidance_scale=7.5,
-                num_inference_steps=20,  # Reduced for faster processing
-                generator=generator,
-                negative_prompt="blurry, low quality, artifacts, deformed, bad anatomy"
-            )
-
-            edited_resized = output.images[0]
-            
-            # Resize back to original dimensions
-            edited = edited_resized.resize(original_size, Image.LANCZOS)
-            
-            # Convert to numpy arrays for blending
-            edited_np = np.array(edited)
-            orig_np = np.array(init_image)
-            mask_np = (np.array(mask_image) > 127).astype(np.uint8)[:, :, None]
-
-            # Ensure all arrays have the same dimensions
-            if edited_np.shape != orig_np.shape:
-                print(f"   ⚠️ Shape mismatch - edited: {edited_np.shape}, original: {orig_np.shape}")
-                # Resize edited to match original if needed
-                edited_np = cv2.resize(edited_np, (orig_np.shape[1], orig_np.shape[0]))
-            
-            if mask_np.shape[:2] != orig_np.shape[:2]:
-                print(f"   ⚠️ Mask shape mismatch - mask: {mask_np.shape}, original: {orig_np.shape}")
-                # Resize mask to match original if needed
-                mask_np = cv2.resize(mask_np, (orig_np.shape[1], orig_np.shape[0]))
-                mask_np = (mask_np > 0.5).astype(np.uint8)
-
-            # Blend edited hair back onto original using mask to preserve face/background
-            composed = (edited_np * mask_np + orig_np * (1 - mask_np)).astype(np.uint8)
-            composed_pil = Image.fromarray(composed)
-            
-            print(f"   ✅ AI Transformation completed successfully")
-            return composed_pil
-
-        except Exception as e:
-            print(f"   ❌ AI transformation failed: {e}")
-            print("   🔄 Falling back to enhanced basic transformation...")
-            return self.enhanced_basic_transformation(original_image, hair_mask, hairstyle, skin_analysis)
+        """Always use enhanced basic transformation for stable deployment"""
+        print(f"   🎨 Enhanced Transformation: {hairstyle}")
+        return self.enhanced_basic_transformation(original_image, hair_mask, hairstyle, skin_analysis)
 
     def basic_ethnicity_aware_transformation(self, original_image, hair_mask, hairstyle, skin_analysis):
         """Basic ethnicity-aware transformation without AI"""
@@ -1286,7 +1163,7 @@ class SkinToneAwareHairTransformation:
                         'type': style_type,
                         'ethnicity': skin_analysis['ethnicity_likely'],
                         'skin_tone': skin_analysis['skin_tone'],
-                        'method': 'Texture-Preserved AI' if use_ai and self.use_hairstyle_ai else 'Basic',
+                        'method': 'Enhanced Basic',
                         'texture_preserved': texture_features is not None
                     })
                 else:
