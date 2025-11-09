@@ -3,7 +3,6 @@ import sys
 import os
 import tempfile
 from PIL import Image
-import traceback
 
 st.set_page_config(
     page_title="AI Hair Transformation",
@@ -12,22 +11,20 @@ st.set_page_config(
 )
 
 st.title("💇 AI Hair Transformation")
-st.info("🚀 Professional Hair Analysis & Styling Recommendations")
+st.info("🎯 Professional Hair Analysis & Personalized Styling Recommendations")
 
-# Initialize the transformer with better error handling
+# Initialize the transformer
 @st.cache_resource
 def load_transformer():
     try:
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         from hair_transformation.utils.hair_ai import StreamlitHairTransformation
         
-        with st.spinner("🔄 Loading AI models... This may take a minute."):
+        with st.spinner("🔄 Loading AI models... This may take a moment."):
             transformer = StreamlitHairTransformation()
-            st.success("✅ AI models loaded successfully!")
             return transformer
     except Exception as e:
         st.error(f"❌ Failed to load AI models: {e}")
-        st.info("The app will use basic functionality.")
         return None
 
 transformer = load_transformer()
@@ -76,25 +73,28 @@ if uploaded_file:
                         for i, style in enumerate(results['recommendations']['styles'], 1):
                             st.write(f"{i}. **{style}**")
                         
-                        # Display transformations
-                        st.header("🎨 Visualized Hairstyles")
+                        # Display color recommendations
+                        st.header("🎨 Recommended Hair Colors")
+                        colors_html = " | ".join([f"**{color}**" for color in results['recommendations']['colors']])
+                        st.markdown(colors_html)
                         
-                        # Show all images
-                        for title, img in results['images']:
-                            st.subheader(title)
-                            st.image(img, use_column_width=True)
+                        # Display transformations
+                        st.header("🖼️ Visualized Hairstyles")
+                        
+                        # Show all images in a grid
+                        cols = st.columns(2)
+                        for i, (title, img) in enumerate(results['images']):
+                            with cols[i % 2]:
+                                st.subheader(title)
+                                st.image(img, use_column_width=True)
                             
                     else:
                         st.error("❌ Analysis failed. Please try with a different image.")
                 else:
-                    st.warning("⚠️ AI models not available. Using basic analysis.")
-                    # Show basic image info
-                    st.image(image, caption="Uploaded Image", use_column_width=True)
-                    st.info("For full AI-powered analysis, please ensure all models are properly loaded.")
+                    st.error("❌ Transformer not available. Please check the model loading.")
                     
             except Exception as e:
                 st.error(f"❌ Processing error: {e}")
-                st.code(traceback.format_exc())
             finally:
                 # Clean up
                 if 'tmp_path' in locals() and os.path.exists(tmp_path):
@@ -112,17 +112,18 @@ This AI-powered app analyzes your facial features and provides personalized hair
 - Personalized style recommendations
 - Visual hair transformations
 
-**Tips for best results:**
+**How it works:**
+1. Upload a clear face photo
+2. AI analyzes your features
+3. Get personalized recommendations
+4. See visualized hairstyles
+""")
+
+st.sidebar.header("💡 Tips for Best Results")
+st.sidebar.info("""
 - Use clear, well-lit photos
 - Face should be clearly visible
 - Remove hats or heavy accessories
 - Natural hair color works best
-""")
-
-st.sidebar.header("🔧 Technical Info")
-st.sidebar.code("""
-Models Used:
-- SegFormer (Hair Segmentation)
-- OpenCV (Face Detection)
-- Custom AI (Style Recommendations)
+- Front-facing photos recommended
 """)
